@@ -1,14 +1,24 @@
-"""Provider sanity check: 1 Tavily search + 1 chat + 1 embed call, ~$0.0002.
+"""Provider sanity check: 1 Tavily search + 1 chat + 1 chat_parsed + 1 embed call, ~$0.0003.
 
-Useful before running the full pipeline to confirm both API keys are valid.
+Useful before running the full pipeline to confirm both API keys are valid
+and that the structured-output (`chat_parsed`) path is supported by the
+current Nebius model.
 
 Run: `uv run python -m ai_news_scout._smoke`
 """
 
 from __future__ import annotations
 
+from pydantic import BaseModel
+
 from ai_news_scout.config import Settings
 from ai_news_scout.providers import Nebius, Tavily
+
+
+class _SmokeReply(BaseModel):
+    """Tiny schema used to verify Nebius accepts response_format=json_schema."""
+
+    reply: str
 
 
 def main() -> None:
@@ -38,6 +48,20 @@ def main() -> None:
     )
     print(
         f"  ok - model={usage.model} tokens(in/out)={usage.prompt_tokens}/{usage.completion_tokens} reply={text.strip()!r}"
+    )
+
+    print("→ Nebius structured output (json_schema)")
+    parsed, usage = nebius.chat_parsed(
+        [
+            {"role": "system", "content": "You return a single field named 'reply'."},
+            {"role": "user", "content": "Set reply to 'pong'."},
+        ],
+        _SmokeReply,
+        max_tokens=30,
+        temperature=0.0,
+    )
+    print(
+        f"  ok - model={usage.model} tokens(in/out)={usage.prompt_tokens}/{usage.completion_tokens} parsed={parsed!r}"
     )
 
     print("→ Nebius embeddings")

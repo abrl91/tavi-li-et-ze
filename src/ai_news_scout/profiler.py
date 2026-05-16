@@ -13,6 +13,7 @@ the open stage; cache hits/misses are recorded on a separate ledger.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
@@ -52,25 +53,34 @@ class Profiler:
         self.stages: dict[str, StageStats] = {}
         self.caches: dict[str, CacheStats] = {}
         self._current: str | None = None
+        # Guards stage/usage/credit/cache mutations so concurrent rank and
+        # write workers can safely call add_usage on the same Profiler.
+        self._lock = threading.Lock()
 
     @contextmanager
     def stage(self, name: str) -> Iterator[None]:
         """Open a stage; usage added inside the block lands on this stage.
 
+        Wall-clock time of the block is added to `stats.seconds`. The `calls`
+        counter is incremented by `add_usage` / `add_tavily_credits` per actual
+        API call, so concurrent fan-outs inside the block produce the right
+        count.
+
         Args:
             name: Stage label (e.g. `"search"`, `"rank"`). Re-entering the same
                 name accumulates into the existing entry.
         """
-        stats = self.stages.setdefault(name, StageStats())
-        prev = self._current
-        self._current = name
+        with self._lock:
+            stats = self.stages.setdefault(name, StageStats())
+            prev = self._current
+            self._current = name
         t0 = time.perf_counter()
         try:
             yield
         finally:
-            stats.seconds += time.perf_counter() - t0
-            stats.calls += 1
-            self._current = prev
+            with self._lock:
+                stats.seconds += time.perf_counter() - t0
+                self._current = prev
 
     def add_usage(self, usage: Usage) -> None:
         """Attribute one LLM call's tokens + dollar cost to the current stage.
@@ -78,26 +88,30 @@ class Profiler:
         Args:
             usage: `Usage` returned by `Nebius.chat` or `Nebius.embed`.
         """
-        if self._current is None:
-            return
-        stats = self.stages[self._current]
-        stats.tokens_in += usage.prompt_tokens
-        stats.tokens_out += usage.completion_tokens
-        stats.cost_usd += _cost_of(usage)
+        with self._lock:
+            if self._current is None:
+                return
+            stats = self.stages[self._current]
+            stats.calls += 1
+            stats.tokens_in += usage.prompt_tokens
+            stats.tokens_out += usage.completion_tokens
+            stats.cost_usd += _cost_of(usage)
 
     def add_tavily_credits(self, credits: float) -> None:
-        """Attribute Tavily API credits + their dollar equivalent to the current stage.
+        """Attribute one Tavily API call's credits + dollars to the current stage.
 
         Args:
             credits: Float number of credits the just-completed Tavily call
                 consumed (e.g. `2.0` for one advanced search,
                 `0.2 * len(urls)` for a basic extract batch).
         """
-        if self._current is None:
-            return
-        stats = self.stages[self._current]
-        stats.tavily_credits += credits
-        stats.cost_usd += credits * TAVILY_CREDIT_USD
+        with self._lock:
+            if self._current is None:
+                return
+            stats = self.stages[self._current]
+            stats.calls += 1
+            stats.tavily_credits += credits
+            stats.cost_usd += credits * TAVILY_CREDIT_USD
 
     def cache_event(self, name: str, *, hit: bool) -> None:
         """Record one cache hit or miss for the named cache.
@@ -106,11 +120,12 @@ class Profiler:
             name: Cache label (e.g. `"search"`, `"embed"`).
             hit: True for a hit, False for a miss.
         """
-        cs = self.caches.setdefault(name, CacheStats())
-        if hit:
-            cs.hits += 1
-        else:
-            cs.misses += 1
+        with self._lock:
+            cs = self.caches.setdefault(name, CacheStats())
+            if hit:
+                cs.hits += 1
+            else:
+                cs.misses += 1
 
     def to_dict(self) -> dict:
         """Return a JSON-serializable snapshot of all stats so far."""

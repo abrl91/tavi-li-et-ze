@@ -2,22 +2,22 @@
 
 The pipeline takes its providers via keyword args, so tests inject fakes that
 implement the same surface without touching the network. FakeTavily records
-every call and returns predetermined results. FakeNebius distinguishes RANK
-from WRITE via the `response_format` flag (RANK passes it, WRITE does not),
-and emits deterministic embedding vectors from a SHA-256 of the input text
-so the same text always gets the same vector across runs.
+every call and returns predetermined results. FakeNebius routes RANK calls
+through `chat_parsed` (which returns a Pydantic instance) and WRITE calls
+through `chat` (which returns plain text). Embeddings are deterministic via
+SHA-256 seeding so the same text always gets the same vector across runs.
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from dataclasses import dataclass, field
 from typing import Iterable, Literal
 
 import numpy as np
 import pytest
+from pydantic import BaseModel
 
 from ai_news_scout.providers import SearchResult, Usage
 from ai_news_scout.store import Store
@@ -122,21 +122,40 @@ class FakeNebius:
                 "prompt": prompt,
             }
         )
-        is_rank = bool(response_format) and response_format.get("type") == "json_object"
-        if is_rank:
-            # RANK_PROMPT shows an example output ahead of the actual items
-            # block, so scan only the post-"Items:" tail to avoid picking up
-            # the placeholder "https://..." from the example.
-            items_block = prompt.split("Items:", 1)[-1]
-            urls = re.findall(r'"url":\s*"([^"]+)"', items_block)
-            k_match = re.search(r"TOP\s+(\d+)", prompt, flags=re.IGNORECASE)
-            k = int(k_match.group(1)) if k_match else len(urls)
-            picks = [{"url": u, "reason": "fake pick"} for u in urls[:k]]
-            text = json.dumps({"picks": picks})
-        else:
-            text = self.write_response
         usage = Usage(prompt_tokens=100, completion_tokens=50, model=chosen_model)
-        return text, usage
+        return self.write_response, usage
+
+    def chat_parsed(
+        self,
+        messages: list[dict],
+        response_model: type[BaseModel],
+        *,
+        model: str | None = None,
+        temperature: float = 0.3,
+        max_tokens: int = 1024,
+    ) -> tuple[BaseModel | None, Usage]:
+        """Mimic SDK structured-output parse: return a Pydantic instance built
+        from URLs found in the user prompt's `Items:` block."""
+        chosen_model = model or self.llm_model
+        prompt = messages[-1].get("content", "")
+        self.chat_calls.append(
+            {
+                "model": chosen_model,
+                "response_format": {
+                    "type": "json_schema",
+                    "name": response_model.__name__,
+                },
+                "prompt": prompt,
+            }
+        )
+        items_block = prompt.split("Items:", 1)[-1]
+        urls = re.findall(r'"url":\s*"([^"]+)"', items_block)
+        k_match = re.search(r"TOP\s+(\d+)", prompt, flags=re.IGNORECASE)
+        k = int(k_match.group(1)) if k_match else len(urls)
+        picks = [{"url": u, "reason": "fake pick"} for u in urls[:k]]
+        parsed = response_model.model_validate({"picks": picks})
+        usage = Usage(prompt_tokens=100, completion_tokens=50, model=chosen_model)
+        return parsed, usage
 
     def embed(self, texts: Iterable[str]) -> tuple[np.ndarray, Usage]:
         items = list(texts)

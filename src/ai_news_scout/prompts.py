@@ -1,52 +1,74 @@
-"""Versioned prompts. Bump VERSION when changing. Useful when comparing brief quality across runs."""
+"""Versioned prompts.
 
-VERSION = "v3"
+Bump VERSION when any of these change so brief quality can be compared across
+runs. Each stage uses a system message for role and rules plus a user message
+for the task and data. The RANK response shape is defined as a Pydantic model
+in `pipeline.py` (`RankResponse`) and enforced via the OpenAI SDK's
+`chat.completions.parse()` which converts the model to a strict JSON schema.
+"""
+
+VERSION = "v4"
 
 
 _STYLE_RULE = (
-    "Style constraint: do NOT use em-dashes (the long dash, U+2014) or "
-    "semicolons in your output. Use periods, commas, or restructure the "
-    "sentence. Regular hyphens (-) are fine."
+    "Do not use em-dashes (the long dash, U+2014) or semicolons. "
+    "Use periods, commas, or restructure the sentence. "
+    "Regular hyphens (-) are fine."
 )
 
 
-RANK_PROMPT = """You are an editor for an AI engineering Discord community.
+RANK_SYSTEM = (
+    "You are an editor for an AI engineering community, selecting the "
+    "best recent news and blog items for a weekly brief.\n\n"
+    "Selection criteria, in order of importance:\n"
+    "  1. Genuine novelty. Avoid items that rehash older news.\n"
+    "  2. Signal-to-noise. Prefer substance over hype or marketing.\n"
+    "  3. Discussion potential. Pick items that spark technical "
+    "conversation among AI engineers.\n\n"
+    "Style: " + _STYLE_RULE
+)
 
-Below are recent news/blog hits about "{topic}" pulled this week. Pick the TOP {k} by:
-  1. Genuine novelty. Avoid items that rehash older news.
-  2. Signal-to-noise. Prefer substance over hype or marketing.
-  3. Discussion potential. Items that spark technical conversation among AI engineers.
 
-Return STRICT JSON ONLY as a single object with key "picks" whose value is a list of {k} objects, each with keys "url" and "reason".
-"reason" is one short sentence explaining the pick.
-Output nothing else. No preamble, no code fences. Example shape:
-{{"picks": [{{"url": "https://...", "reason": "..."}}, {{"url": "https://...", "reason": "..."}}]}}
+RANK_USER = """Pick the TOP {k} items about "{topic}" from the list below.
 
-""" + _STYLE_RULE + """
+For each pick, return the URL exactly as provided and one short sentence explaining why it made the cut.
 
 Items:
 {items}
 """
 
 
-WRITE_PROMPT = """You are writing one entry of a weekly "Explorer Brief" for an AI engineering Discord community. Audience: working ML/AI engineers and students.
+WRITE_SYSTEM = (
+    "You are writing one entry of a weekly Explorer Brief for an AI "
+    "engineering community. Audience: working ML and AI engineers and "
+    "students.\n\n"
+    "Output exactly four lines. No preamble, no closing remarks.\n\n"
+    "Line 1 MUST be a bold Markdown link in this exact form:\n"
+    "  **[TITLE](URL)**\n"
+    "The double-asterisks wrap a Markdown link whose label is in square "
+    "brackets [] and target is in round brackets () with no space between "
+    "them. Wrong forms include `**TITLE** (URL)` (parens after bold, not a "
+    "real link) and `**TITLE**` with no URL.\n\n"
+    "Lines 2-4 use this structure (do not copy the example text, copy the "
+    "structure):\n"
+    "  *What it is:* One factual sentence describing the item.\n"
+    "  *Why it matters:* One sentence on the technical or strategic implication.\n"
+    "  *Discussion:* One open question relevant to AI engineers.\n\n"
+    "Worked example:\n"
+    "**[Example title goes here](https://example.com/sample-article)**\n"
+    "*What it is:* A factual one-sentence description.\n"
+    "*Why it matters:* The implication for engineers.\n"
+    "*Discussion:* An open question.\n\n"
+    "Rules:\n"
+    "  - Use the exact title and URL provided. Do not paraphrase the title.\n"
+    "  - Ground every claim in the source content provided. Do not invent "
+    "facts that are not in the source.\n\n"
+    "Style: " + _STYLE_RULE
+)
 
-Output exactly four lines in this format. The first line MUST be a Markdown link in the form `[title](url)` wrapped in `**...**`. Do NOT omit the URL or change the bracket/parenthesis order.
 
-Worked example (do not copy the text. Copy the SHAPE):
-**[Anthropic releases Claude Sonnet 4.6 with thinking](https://www.anthropic.com/news/claude-sonnet-4-6)**
-*What it is:* Anthropic shipped a new Claude model with a built-in extended-thinking mode for complex reasoning.
-*Why it matters:* Extended thinking lets agent loops trade latency for accuracy without bolt-on chain-of-thought scaffolding. Relevant if you're building anything multi-step.
-*Discussion:* When does extended thinking pay off versus just running the cheaper model in a tool-use loop?
-
-""" + _STYLE_RULE + """
-
-Now write the entry for THIS source. Use the exact title and URL given below, do not paraphrase the title:
-
-Source title: {title}
+WRITE_USER = """Source title: {title}
 Source URL: {url}
-Source content (your only ground truth. Do NOT invent facts not present here):
+Source content (your only ground truth):
 {content}
-
-Write only the entry. Four lines, no preamble, no closing remarks.
 """

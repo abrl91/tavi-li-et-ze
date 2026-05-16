@@ -5,9 +5,9 @@
   3. URL DEDUP — collapse exact-URL duplicates across crawl+search (kept highest score)
   4. EMBED     — Nebius embedding model on (title + snippet) (cached, no expiry)
   5. NOVELTY   — drop items whose max-cosine vs prior corpus exceeds threshold
-  6. RANK      — one LLM call per topic picks top-k from survivors
+  6. RANK      — concurrent LLM call per topic picks top-k from survivors
   7. EXTRACT   — Tavily batch extract of chosen URLs for fuller content
-  8. WRITE     — one LLM call per chosen item produces the Explorer block
+  8. WRITE     — concurrent LLM call per chosen item produces the Explorer block
 
 Returns a dict with the date, markdown, entries, a stats dict (JSON-safe), and
 the live `Profiler` instance for the CLI to render.
@@ -18,14 +18,16 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date as date_t
 from typing import Iterable
 
 import numpy as np
+from pydantic import BaseModel
 
 from .brief import render
 from .profiler import Profiler
-from .prompts import RANK_PROMPT, WRITE_PROMPT
+from .prompts import RANK_SYSTEM, RANK_USER, WRITE_SYSTEM, WRITE_USER
 from .providers import (
     Nebius,
     SearchResult,
@@ -41,6 +43,20 @@ from .store import Store
 _log = logging.getLogger(__name__)
 _SEARCH_CACHE_TTL_SECONDS = 15 * 60
 _CRAWL_CACHE_TTL_SECONDS = 60 * 60
+_DEFAULT_MAX_CONCURRENCY = 5
+
+
+class RankPick(BaseModel):
+    """One entry of the ranker's output: a chosen URL and one-line reason."""
+
+    url: str
+    reason: str
+
+
+class RankResponse(BaseModel):
+    """Strict response shape for the ranker, enforced via OpenAI SDK parse()."""
+
+    picks: list[RankPick]
 
 
 def _normalize(matrix: np.ndarray) -> np.ndarray:
@@ -69,32 +85,6 @@ def _dedup_by_url(items: list[SearchResult]) -> list[SearchResult]:
         if prev is None or item.score > prev.score:
             by_url[item.url] = item
     return list(by_url.values())
-
-
-def _strip_code_fence(text: str) -> str:
-    s = text.strip()
-    if s.startswith("```"):
-        s = s.strip("`").strip()
-        if s.lower().startswith("json"):
-            s = s[4:].strip()
-    return s
-
-
-def _parse_json_list(text: str) -> list | None:
-    try:
-        out = json.loads(_strip_code_fence(text))
-    except json.JSONDecodeError:
-        return None
-    if isinstance(out, list):
-        return out
-    # response_format={"type":"json_object"} forces a top-level object, so a
-    # model may wrap the requested array as {"picks":[...]} or similar. Unwrap
-    # when there's exactly one list value.
-    if isinstance(out, dict):
-        lists = [v for v in out.values() if isinstance(v, list)]
-        if len(lists) == 1:
-            return lists[0]
-    return None
 
 
 def _cached_search(
@@ -224,7 +214,7 @@ def _embed_cache_key(model: str, text: str) -> str:
     return "embed:" + hashlib.sha256(f"{model}\x00{text}".encode("utf-8")).hexdigest()
 
 
-def _rank(
+def _rank_one_topic(
     nebius: Nebius,
     topic: str,
     items: list[SearchResult],
@@ -234,6 +224,12 @@ def _rank(
     model: str | None = None,
     debug: bool = False,
 ) -> list[tuple[SearchResult, str]]:
+    """Rank one topic's items via strict-schema Pydantic structured output.
+
+    Returns (item, reason) pairs in the order the model picked them, capped at
+    `k`. Picks whose URL isn't in `items` are dropped, defending against the
+    model fabricating URLs.
+    """
     if not items:
         return []
     k = min(k, len(items))
@@ -241,72 +237,48 @@ def _rank(
         {"url": it.url, "title": it.title, "snippet": (it.content or "")[:300]}
         for it in items
     ]
-    prompt = RANK_PROMPT.format(topic=topic, k=k, items=json.dumps(payload, indent=2))
+    user_message = RANK_USER.format(
+        topic=topic, k=k, items=json.dumps(payload, indent=2)
+    )
+    messages = [
+        {"role": "system", "content": RANK_SYSTEM},
+        {"role": "user", "content": user_message},
+    ]
 
     if debug:
-        print(f"\n{'=' * 70}\nRANK PROMPT - topic={topic!r}, k={k}, n_items={len(items)}\n{'=' * 70}")
-        print(prompt)
+        print(f"\n{'=' * 70}\nRANK - topic={topic!r}, k={k}, n_items={len(items)}\n{'=' * 70}")
+        print("SYSTEM:\n" + RANK_SYSTEM)
+        print("\nUSER:\n" + user_message)
 
-    text, usage = nebius.chat(
-        [{"role": "user", "content": prompt}],
+    parsed, usage = nebius.chat_parsed(
+        messages,
+        RankResponse,
         model=model,
         temperature=0.2,
         max_tokens=600,
-        response_format={"type": "json_object"},
     )
     profiler.add_usage(usage)
 
     if debug:
         print(f"\n--- RANK RESPONSE - topic={topic!r} ---")
-        print(text)
+        print(parsed.model_dump_json(indent=2) if parsed is not None else "<refusal>")
 
-    parsed = _parse_json_list(text)
     if parsed is None:
-        # Token Factory's enforcement of response_format is unverified for some
-        # models. Log so we can tell empirically whether the retry path matters.
         _log.warning(
-            "RANK retry: model=%s topic=%r returned non-JSON despite response_format=json_object",
+            "RANK refused: model=%s topic=%r returned no parsed content",
             usage.model, topic,
         )
-        if debug:
-            print(f"\n--- RANK RETRY - topic={topic!r} (previous response was not valid JSON) ---")
-        # one retry with stricter instruction. response_format omitted: if the
-        # first call failed despite the constraint, asking again with the same
-        # constraint would likely fail identically. Fall back to free-form and
-        # rely on the prompt to enforce JSON shape.
-        text, usage = nebius.chat(
-            [
-                {"role": "user", "content": prompt},
-                {"role": "assistant", "content": text},
-                {
-                    "role": "user",
-                    "content": 'Your previous reply was not valid JSON. Reply ONLY with the JSON object containing "picks", nothing else.',
-                },
-            ],
-            model=model,
-            temperature=0.0,
-            max_tokens=600,
-        )
-        profiler.add_usage(usage)
-        if debug:
-            print(f"--- RANK RETRY RESPONSE - topic={topic!r} ---")
-            print(text)
-        parsed = _parse_json_list(text)
-    if parsed is None:
         return []
 
     by_url = {it.url: it for it in items}
     chosen: list[tuple[SearchResult, str]] = []
-    for entry in parsed[:k]:
-        if not isinstance(entry, dict):
-            continue
-        url = entry.get("url")
-        if url in by_url:
-            chosen.append((by_url[url], str(entry.get("reason", "")).strip()))
+    for pick in parsed.picks[:k]:
+        if pick.url in by_url:
+            chosen.append((by_url[pick.url], pick.reason.strip()))
     return chosen
 
 
-def _write_entry(
+def _write_one_entry(
     nebius: Nebius,
     item: SearchResult,
     *,
@@ -315,18 +287,22 @@ def _write_entry(
     extracted_content: str | None = None,
     debug: bool = False,
 ) -> str:
+    """Write one Explorer-format entry for one chosen item."""
     body = extracted_content or item.raw_content or item.content or ""
-    # 3000-char cap keeps prompt cost predictable even when /extract returns
-    # a long article body.
     content = body[:3000]
-    prompt = WRITE_PROMPT.format(title=item.title, url=item.url, content=content)
+    user_message = WRITE_USER.format(title=item.title, url=item.url, content=content)
+    messages = [
+        {"role": "system", "content": WRITE_SYSTEM},
+        {"role": "user", "content": user_message},
+    ]
 
     if debug:
-        print(f"\n{'=' * 70}\nWRITE PROMPT - url={item.url}\n{'=' * 70}")
-        print(prompt)
+        print(f"\n{'=' * 70}\nWRITE - url={item.url}\n{'=' * 70}")
+        print("SYSTEM:\n" + WRITE_SYSTEM)
+        print("\nUSER:\n" + user_message)
 
     text, usage = nebius.chat(
-        [{"role": "user", "content": prompt}],
+        messages,
         model=model,
         temperature=0.4,
         max_tokens=400,
@@ -356,6 +332,7 @@ def run(
     search_exclude_domains: list[str] | None = None,
     enable_crawl: bool = True,
     search_time_range: str = "week",
+    max_concurrency: int = _DEFAULT_MAX_CONCURRENCY,
     debug: bool = False,
 ) -> dict:
     store = store or Store()
@@ -424,18 +401,25 @@ def run(
     by_topic: dict[str, list[SearchResult]] = {}
     for it, _ in survivors:
         by_topic.setdefault(it.topic, []).append(it)
-    chosen: list[tuple[SearchResult, str]] = []
-    for topic, items in by_topic.items():
-        with profiler.stage("rank"):
-            chosen.extend(
-                _rank(
-                    nebius, topic, items, k=top_k_per_topic,
-                    profiler=profiler, model=rank_model, debug=debug,
-                )
-            )
 
-    # Failures here are silent. WRITE falls back to raw_content/content for
-    # any URL missing from the result dict.
+    chosen: list[tuple[SearchResult, str]] = []
+    if by_topic:
+        with profiler.stage("rank"):
+            with ThreadPoolExecutor(max_workers=max_concurrency) as ex:
+                futures = [
+                    ex.submit(
+                        _rank_one_topic,
+                        nebius, topic, items, top_k_per_topic,
+                        profiler=profiler, model=rank_model, debug=debug,
+                    )
+                    for topic, items in by_topic.items()
+                ]
+                for f in futures:
+                    try:
+                        chosen.extend(f.result())
+                    except Exception:
+                        _log.exception("rank task failed, skipping")
+
     chosen_urls = [it.url for it, _ in chosen]
     extracted: dict[str, str] = {}
     if chosen_urls:
@@ -446,18 +430,38 @@ def run(
             )
 
     entries: list[dict] = []
-    for it, reason in chosen:
+    if chosen:
         with profiler.stage("write"):
-            md = _write_entry(
-                nebius, it,
-                profiler=profiler,
-                model=write_model,
-                extracted_content=extracted.get(it.url),
-                debug=debug,
-            )
-        entries.append(
-            {"url": it.url, "title": it.title, "topic": it.topic, "reason": reason, "markdown": md}
-        )
+            with ThreadPoolExecutor(max_workers=max_concurrency) as ex:
+                futures = [
+                    (
+                        it, reason,
+                        ex.submit(
+                            _write_one_entry,
+                            nebius, it,
+                            profiler=profiler,
+                            model=write_model,
+                            extracted_content=extracted.get(it.url),
+                            debug=debug,
+                        ),
+                    )
+                    for it, reason in chosen
+                ]
+                for it, reason, f in futures:
+                    try:
+                        md = f.result()
+                    except Exception:
+                        _log.exception("write task failed for %s, skipping", it.url)
+                        continue
+                    entries.append(
+                        {
+                            "url": it.url,
+                            "title": it.title,
+                            "topic": it.topic,
+                            "reason": reason,
+                            "markdown": md,
+                        }
+                    )
 
     if survivors:
         store.save_items(
