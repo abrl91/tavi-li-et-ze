@@ -158,6 +158,7 @@ def _run_pipeline_bg(
             canonical_sources=settings.canonical_sources,
             search_exclude_domains=settings.search_exclude_domains,
             enable_crawl=settings.enable_crawl,
+            search_time_range=settings.search_time_range,
         )
     except Exception:
         # Background tasks have no caller to raise to. Log so the failure is

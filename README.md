@@ -42,7 +42,7 @@ flowchart TD
 | # | Stage | What | Cost |
 |---|---|---|---|
 | 1 | Crawl | One-hop crawl on canonical vendor blogs, with natural-language instructions | one crawl per source, 1-hour cache |
-| 2 | Search | News search per topic, one-week window, query-expanded and noise-domain filtered | one search per topic, 15-min cache |
+| 2 | Search | News search per topic, configurable recency window (default 1 week), query-expanded and noise-domain filtered | one search per topic, 15-min cache |
 | 3 | URL dedup | Exact-match collapse across crawl + search | free |
 | 4 | Embed | Qwen3-Embedding-8B on title+snippet | one batched embed call |
 | 5 | Novelty filter | Cosine vs prior corpus, drop if > 0.86 | numpy matmul, microseconds |

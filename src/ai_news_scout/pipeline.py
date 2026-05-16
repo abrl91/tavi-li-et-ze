@@ -355,6 +355,7 @@ def run(
     canonical_sources: list[dict[str, str]] | None = None,
     search_exclude_domains: list[str] | None = None,
     enable_crawl: bool = True,
+    search_time_range: str = "week",
     debug: bool = False,
 ) -> dict:
     store = store or Store()
@@ -389,6 +390,7 @@ def run(
                     topic_label=topic,
                     query=query,
                     max_results=max_results_per_topic,
+                    time_range=search_time_range,
                     exclude_domains=search_exclude_domains,
                 )
             )

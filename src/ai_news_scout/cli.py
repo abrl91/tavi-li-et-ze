@@ -26,6 +26,12 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--top-k", type=int, default=3, help="items selected per topic (default: %(default)s)")
     parser.add_argument("--dedup-threshold", type=float, default=0.86, help="max cosine vs prior items before drop (default: %(default)s)")
     parser.add_argument("--no-crawl", action="store_true", help="skip the Tavily crawl stage (saves credits)")
+    parser.add_argument(
+        "--time-range",
+        choices=["day", "week", "month", "year"],
+        default=None,
+        help=f"Tavily recency window for search (default: {settings.search_time_range})",
+    )
     parser.add_argument("--profile", action="store_true", help="print the per-stage profile table")
     parser.add_argument("--debug", action="store_true", help="print rendered RANK/WRITE prompts and LLM responses")
     args = parser.parse_args(argv)
@@ -48,6 +54,7 @@ def main(argv: list[str] | None = None) -> None:
         canonical_sources=settings.canonical_sources,
         search_exclude_domains=settings.search_exclude_domains,
         enable_crawl=settings.enable_crawl and not args.no_crawl,
+        search_time_range=args.time_range or settings.search_time_range,
         debug=args.debug,
     )
 

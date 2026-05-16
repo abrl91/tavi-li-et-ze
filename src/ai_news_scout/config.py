@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -101,6 +103,8 @@ class Settings(BaseSettings):
     search_exclude_domains: list[str] = Field(
         default_factory=lambda: ["medium.com", "dev.to", "substack.com"]
     )
+
+    search_time_range: Literal["day", "week", "month", "year"] = "week"
 
     # Master switch for the crawl stage. Off avoids Tavily crawl credits when
     # iterating locally on the rest of the pipeline.
