@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1620 540" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <style>
+    .theme-text { fill: #1e1e1e; }
+    .theme-text-muted { fill: #495057; }
+    .theme-stroke { stroke: #1e1e1e; }
+    .theme-stroke-muted { stroke: #868e96; }
+    @media (prefers-color-scheme: dark) {
+      .theme-text { fill: #e6e6e6; }
+      .theme-text-muted { fill: #adb5bd; }
+      .theme-stroke { stroke: #e6e6e6; }
+      .theme-stroke-muted { stroke: #adb5bd; }
+    }
+  </style>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/>
+    </marker>
+  </defs>
+
+  <text x="40" y="40" font-size="26" font-weight="700" class="theme-text">AI News Scout pipeline</text>
+
+  <!-- crawl -->
+  <rect x="40" y="100" width="140" height="70" rx="10" fill="#a5d8ff" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="110" y="142" font-size="20" text-anchor="middle" fill="#1e1e1e">1. crawl</text>
+
+  <!-- search -->
+  <rect x="40" y="280" width="140" height="70" rx="10" fill="#a5d8ff" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="110" y="322" font-size="20" text-anchor="middle" fill="#1e1e1e">2. search</text>
+
+  <!-- url-dedup -->
+  <rect x="260" y="190" width="140" height="70" rx="10" fill="#ffec99" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="330" y="232" font-size="18" text-anchor="middle" fill="#1e1e1e">3. url-dedup</text>
+
+  <!-- embed -->
+  <rect x="480" y="190" width="140" height="70" rx="10" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="550" y="232" font-size="20" text-anchor="middle" fill="#1e1e1e">4. embed</text>
+
+  <!-- novelty -->
+  <rect x="700" y="190" width="140" height="70" rx="10" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="770" y="232" font-size="20" text-anchor="middle" fill="#1e1e1e">5. novelty</text>
+
+  <!-- rank -->
+  <rect x="920" y="190" width="140" height="70" rx="10" fill="#ffc9c9" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="990" y="232" font-size="20" text-anchor="middle" fill="#1e1e1e">6. rank</text>
+
+  <!-- extract -->
+  <rect x="1140" y="190" width="140" height="70" rx="10" fill="#a5d8ff" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="1210" y="232" font-size="20" text-anchor="middle" fill="#1e1e1e">7. extract</text>
+
+  <!-- write -->
+  <rect x="1360" y="190" width="140" height="70" rx="10" fill="#ffc9c9" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="1430" y="232" font-size="20" text-anchor="middle" fill="#1e1e1e">8. write</text>
+
+  <!-- brief output (always-light card) -->
+  <rect x="1360" y="70" width="140" height="60" rx="10" fill="#f8f9fa" stroke="#1e1e1e" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="1430" y="96" font-size="14" text-anchor="middle" fill="#1e1e1e">briefs/</text>
+  <text x="1430" y="116" font-size="14" text-anchor="middle" fill="#1e1e1e">YYYY-MM-DD.md</text>
+
+  <!-- items table (always-light card) -->
+  <rect x="1360" y="330" width="140" height="60" rx="10" fill="#f8f9fa" stroke="#1e1e1e" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="1430" y="356" font-size="14" text-anchor="middle" fill="#1e1e1e">items table</text>
+  <text x="1430" y="376" font-size="14" text-anchor="middle" fill="#1e1e1e">(SQLite)</text>
+
+  <!-- fan-in arrows -->
+  <line x1="180" y1="135" x2="258" y2="220" class="theme-stroke" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="180" y1="315" x2="258" y2="230" class="theme-stroke" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- linear arrows -->
+  <line x1="400" y1="225" x2="478" y2="225" class="theme-stroke" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="620" y1="225" x2="698" y2="225" class="theme-stroke" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="840" y1="225" x2="918" y2="225" class="theme-stroke" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1060" y1="225" x2="1138" y2="225" class="theme-stroke" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1280" y1="225" x2="1358" y2="225" class="theme-stroke" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- write -> brief (up), write -> items (down) -->
+  <line x1="1430" y1="190" x2="1430" y2="132" class="theme-stroke" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="1430" y1="260" x2="1430" y2="328" class="theme-stroke" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- dedup memory: items -> novelty (curved dashed muted) -->
+  <path d="M 1360 360 Q 770 460 770 262" fill="none" class="theme-stroke-muted" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="900" y="455" font-size="14" font-style="italic" class="theme-text-muted">dedup memory (cosine vs prior corpus)</text>
+
+  <!-- legend -->
+  <g transform="translate(40, 425)">
+    <rect x="0" y="0" width="20" height="14" fill="#a5d8ff" stroke="#1e1e1e" stroke-width="1.5"/>
+    <text x="28" y="12" font-size="14" class="theme-text">Tavily retrieval</text>
+
+    <rect x="160" y="0" width="20" height="14" fill="#ffec99" stroke="#1e1e1e" stroke-width="1.5"/>
+    <text x="188" y="12" font-size="14" class="theme-text">in-memory dedup</text>
+
+    <rect x="340" y="0" width="20" height="14" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="1.5"/>
+    <text x="368" y="12" font-size="14" class="theme-text">embedding + cosine (ML core)</text>
+
+    <rect x="620" y="0" width="20" height="14" fill="#ffc9c9" stroke="#1e1e1e" stroke-width="1.5"/>
+    <text x="648" y="12" font-size="14" class="theme-text">LLM call</text>
+
+    <rect x="730" y="0" width="20" height="14" fill="#f8f9fa" stroke="#1e1e1e" stroke-width="1.5" stroke-dasharray="3 2"/>
+    <text x="758" y="12" font-size="14" class="theme-text">SQLite persistence</text>
+  </g>
+</svg>

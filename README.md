@@ -14,6 +14,8 @@ The interesting bit is the **novelty filter**: every candidate article is turned
 
 ## Architecture
 
+For the full design walkthrough (design decisions, component-by-component breakdown, reliability and testability notes), see [`docs/DESIGN.md`](docs/DESIGN.md). An interactive Excalidraw version of the pipeline diagram lives at [`docs/pipeline.excalidraw`](docs/pipeline.excalidraw).
+
 ```mermaid
 flowchart TD
     Topics["topics watchlist<br/>(agentic search, RAG eval, ...)"]
