@@ -1,9 +1,9 @@
-# Explorer Brief
+# AI News Scout
 
 A small agent that scouts AI/ML news on a configurable watchlist, semantically dedupes results against everything it has ever read, ranks survivors with an LLM, and renders a Markdown brief you can paste anywhere.
 
 <p align="center">
-  <img src="docs/screenshot.png" alt="Explorer Brief viewer (dark theme)" width="820" />
+  <img src="docs/screenshot.png" alt="AI News Scout viewer (dark theme)" width="820" />
 </p>
 
 ## What it does

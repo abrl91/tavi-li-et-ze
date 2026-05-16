@@ -29,7 +29,7 @@ test:  ## run the pytest suite (no network, no API spend)
 	uv run pytest
 
 api:  ## start the FastAPI viewer on :8000 (auto-reloads on code changes)
-	@echo "→ Explorer Brief viewer:  http://127.0.0.1:8000"
+	@echo "→ AI News Scout viewer:  http://127.0.0.1:8000"
 	uv run uvicorn ai_news_scout.api:app --host 127.0.0.1 --port 8000 --reload
 
 api-prod:  ## same as `api` but no --reload (entry point from pyproject.toml)

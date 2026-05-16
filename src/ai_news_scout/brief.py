@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-_HEADER = """# Explorer Brief · {date}
+_HEADER = """# AI News Scout · {date}
 
 """
 

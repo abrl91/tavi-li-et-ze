@@ -63,7 +63,7 @@ def test_pipeline_runs_end_to_end(
     stage_keys = list(stats["profiler"]["stages"].keys())
     assert stage_keys == ["search", "embed", "novelty", "rank", "extract", "write"]
 
-    assert "Explorer Brief" in result["markdown"]
+    assert "AI News Scout" in result["markdown"]
     assert result["markdown"].count("Test entry") == 2
 
     mat, urls = temp_store.all_embeddings()

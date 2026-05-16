@@ -1,4 +1,4 @@
-"""Eight-stage Explorer Brief pipeline.
+"""Eight-stage AI News Scout pipeline.
 
   1. CRAWL     — Tavily crawl on canonical sources (cached, 1-hour TTL, optional)
   2. SEARCH    — Tavily news search per watchlist topic (cached, 15-min TTL)
@@ -7,7 +7,7 @@
   5. NOVELTY   — drop items whose max-cosine vs prior corpus exceeds threshold
   6. RANK      — concurrent LLM call per topic picks top-k from survivors
   7. EXTRACT   — Tavily batch extract of chosen URLs for fuller content
-  8. WRITE     — concurrent LLM call per chosen item produces the Explorer block
+  8. WRITE     — concurrent LLM call per chosen item produces the brief entry block
 
 Returns a dict with the date, markdown, entries, a stats dict (JSON-safe), and
 the live `Profiler` instance for the CLI to render.
@@ -287,7 +287,7 @@ def _write_one_entry(
     extracted_content: str | None = None,
     debug: bool = False,
 ) -> str:
-    """Write one Explorer-format entry for one chosen item."""
+    """Write one brief entry for one chosen item."""
     body = extracted_content or item.raw_content or item.content or ""
     content = body[:3000]
     user_message = WRITE_USER.format(title=item.title, url=item.url, content=content)

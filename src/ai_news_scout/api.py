@@ -1,4 +1,4 @@
-"""FastAPI viewer for Explorer Briefs.
+"""FastAPI viewer for AI News Scout briefs.
 
 Routes:
   GET  /                    -> latest brief + sidebar + stats footer
@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         store._conn.close()
 
 
-app = FastAPI(title="Explorer Brief", lifespan=lifespan)
+app = FastAPI(title="AI News Scout", lifespan=lifespan)
 
 
 def get_settings(request: Request) -> Settings:

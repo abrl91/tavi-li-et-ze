@@ -1,8 +1,8 @@
-# Tavi-Li-Et-Ze (Explorer Brief)
+# Tavi-Li-Et-Ze (AI News Scout)
 
 Tavily + Nebius Token Factory agent that scouts AI/ML news on a watchlist,
-dedupes semantically via embeddings, ranks via LLM, and emits an Explorer-format
-Markdown brief. Design doc: `.plans/explorer-brief.md`.
+dedupes semantically via embeddings, ranks via LLM, and emits a four-line-entry
+Markdown brief. Design doc: `docs/DESIGN.md`.
 
 ## Common commands
 

@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> None:
         base_url=settings.nebius_base_url,
     )
 
-    parser = argparse.ArgumentParser(prog="brief", description="Generate the weekly Explorer Brief.")
+    parser = argparse.ArgumentParser(prog="brief", description="Generate the weekly AI News Scout brief.")
     parser.add_argument("--topics", default=None, help=f"comma-separated watchlist (default: {','.join(settings.default_topics)})")
     parser.add_argument("--max-results", type=int, default=10, help="Tavily results per topic (default: %(default)s)")
     parser.add_argument("--top-k", type=int, default=3, help="items selected per topic (default: %(default)s)")

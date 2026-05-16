@@ -39,7 +39,7 @@ Items:
 
 
 WRITE_SYSTEM = (
-    "You are writing one entry of a weekly Explorer Brief for an AI "
+    "You are writing one entry of a weekly AI News Scout brief for an AI "
     "engineering community. Audience: working ML and AI engineers and "
     "students.\n\n"
     "Output exactly four lines. No preamble, no closing remarks.\n\n"
