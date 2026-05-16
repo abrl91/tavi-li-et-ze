@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Explorer Brief{% if brief %} · {{ brief.date }}{% endif %}</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <style>
+    :root {
+      --bg:           #08090A;
+      --surface:      #0F1011;
+      --surface-hi:   #161618;
+      --border:       #1F1F22;
+      --border-hi:    #2A2A2D;
+      --text:         #EDEDEF;
+      --muted:        #8E8E92;
+      --faint:        #5C5C61;
+      --accent:       #7C82FF;
+      --accent-soft:  #9EA3FF;
+      --accent-glow:  rgba(124, 130, 255, 0.14);
+      --good:         #4ADE80;
+      --bad:          #F87171;
+
+      --r-card: 10px;
+      --r-btn:  8px;
+      --r-chip: 4px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 14px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; }
+
+    /* layout */
+    .shell {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+      border-bottom: 1px solid var(--border);
+    }
+    .title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--text);
+    }
+    .title-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+    .tagline {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 2px;
+    }
+    .title-block { display: flex; flex-direction: column; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 40px;
+    }
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: 1fr; gap: 24px; }
+    }
+
+    /* sidebar */
+    aside h2 {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--faint);
+      margin: 0 0 12px 4px;
+    }
+    .archive {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .archive a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      transition: background 120ms ease, color 120ms ease;
+    }
+    .archive a:hover {
+      background: var(--surface);
+      color: var(--text);
+    }
+    .archive a.active {
+      background: var(--surface-hi);
+      color: var(--text);
+    }
+    .archive a.active::before {
+      content: '';
+      width: 3px;
+      height: 12px;
+      border-radius: 2px;
+      background: var(--accent);
+      margin-left: -6px;
+      margin-right: 4px;
+    }
+    .archive-empty {
+      color: var(--faint);
+      font-size: 13px;
+      font-style: italic;
+      padding: 8px 10px;
+    }
+
+    /* button */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border: 1px solid var(--border-hi);
+      border-radius: var(--r-btn);
+      background: linear-gradient(180deg, #1A1A1D 0%, #131316 100%);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 140ms ease;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .btn:hover {
+      border-color: var(--accent);
+      background: linear-gradient(180deg, #1F1F23 0%, #16161A 100%);
+      box-shadow: 0 0 0 3px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+    .btn:active { transform: translateY(0.5px); }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: progress;
+    }
+    .btn-icon {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    /* card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-card);
+      padding: 32px;
+    }
+    .card + .card { margin-top: 16px; }
+
+    .card-head {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--faint);
+      margin: 0 0 16px 0;
+    }
+
+    /* brief prose (custom, not Tailwind Typography) */
+    .brief-body {
+      font-size: 15px;
+      line-height: 1.65;
+      color: var(--text);
+    }
+    .brief-body h1 {
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      margin: 0 0 24px 0;
+      color: var(--text);
+    }
+    .brief-body h2 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+      margin: 32px 0 12px 0;
+      color: var(--text);
+    }
+    .brief-body p { margin: 0 0 14px 0; }
+    .brief-body a {
+      color: var(--accent-soft);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color 120ms ease;
+    }
+    .brief-body a:hover { border-bottom-color: var(--accent); }
+    .brief-body strong { color: var(--text); font-weight: 600; }
+    .brief-body em { color: var(--muted); font-style: italic; }
+    .brief-body hr {
+      border: none;
+      height: 1px;
+      background: var(--border);
+      margin: 28px 0;
+    }
+    .brief-body code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88em;
+      padding: 1px 6px;
+      border-radius: var(--r-chip);
+      background: var(--surface-hi);
+      color: var(--accent-soft);
+      border: 1px solid var(--border);
+    }
+    .brief-body ul, .brief-body ol { padding-left: 22px; margin: 0 0 14px 0; }
+    .brief-body li { margin: 4px 0; }
+
+    /* stats */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 720px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .stat {
+      padding: 14px 16px;
+      background: var(--surface-hi);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: var(--faint);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-value.muted { color: var(--muted); }
+
+    .stats-section { margin-top: 24px; }
+    .stats-section h3 {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--faint);
+      margin: 0 0 10px 0;
+    }
+    table.stats {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12.5px;
+      font-variant-numeric: tabular-nums;
+    }
+    table.stats thead th {
+      text-align: right;
+      color: var(--faint);
+      font-weight: 400;
+      font-size: 11px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    table.stats thead th:first-child { text-align: left; }
+    table.stats tbody td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: right;
+      color: var(--text);
+    }
+    table.stats tbody td:first-child { text-align: left; color: var(--muted); }
+    table.stats tbody tr:last-child td { border-bottom: none; }
+    table.stats tr.total td { color: var(--text); font-weight: 500; }
+    table.stats tr.total td:first-child {
+      color: var(--accent-soft);
+      letter-spacing: 0.05em;
+    }
+    .hit-rate.good { color: var(--good); }
+    .hit-rate.zero { color: var(--faint); }
+
+    /* empty state */
+    .empty {
+      text-align: center;
+      padding: 80px 24px;
+    }
+    .empty h3 {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--text);
+      margin: 0 0 8px 0;
+    }
+    .empty p { color: var(--muted); margin: 0; }
+    .empty code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.92em;
+      padding: 2px 6px;
+      border-radius: var(--r-chip);
+      background: var(--surface-hi);
+      border: 1px solid var(--border);
+      color: var(--accent-soft);
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+
+    <header class="topbar">
+      <div class="title-block">
+        <div class="title">
+          <span class="title-dot"></span>
+          Explorer Brief
+        </div>
+        <div class="tagline">Weekly AI/ML news, agent-curated</div>
+      </div>
+      <button id="runBtn" class="btn" type="button">
+        <span class="btn-icon"></span>
+        Run new brief
+      </button>
+    </header>
+
+    <div class="grid">
+
+      <aside>
+        <h2>Archive</h2>
+        <ul class="archive">
+          {% for date, created_at in briefs %}
+            <li>
+              <a href="/briefs/{{ date }}"
+                 class="{% if brief and brief.date == date %}active{% endif %}">
+                {{ date }}
+              </a>
+            </li>
+          {% else %}
+            <li class="archive-empty">no briefs yet</li>
+          {% endfor %}
+        </ul>
+      </aside>
+
+      <main>
+        {% if brief %}
+          <article class="card">
+            <div id="brief" class="brief-body"></div>
+            <script id="brief-md" type="application/json">{{ brief.markdown | tojson | safe }}</script>
+            <script>
+              const md = JSON.parse(document.getElementById("brief-md").textContent);
+              document.getElementById("brief").innerHTML = marked.parse(md);
+            </script>
+          </article>
+
+          <section class="card">
+            <div class="card-head">Pipeline stats</div>
+
+            <div class="stats-grid">
+              <div class="stat">
+                <div class="stat-label">Items</div>
+                <div class="stat-value">{{ brief.stats.n_in_brief }}</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Searched</div>
+                <div class="stat-value muted">{{ brief.stats.n_searched }}</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Dropped</div>
+                <div class="stat-value muted">{{ brief.stats.n_dropped_novelty }}</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Cost</div>
+                <div class="stat-value">${{ "%.4f"|format(brief.stats.cost_usd) }}</div>
+              </div>
+            </div>
+
+            {% if brief.stats.stages %}
+            <div class="stats-section">
+              <h3>Per stage</h3>
+              <table class="stats">
+                <thead>
+                  <tr>
+                    <th>Stage</th>
+                    <th>Calls</th>
+                    <th>Sec</th>
+                    <th>Tok in</th>
+                    <th>Tok out</th>
+                    <th>$</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for name, s in brief.stats.stages.items() %}
+                  <tr>
+                    <td>{{ name }}</td>
+                    <td>{{ s.calls }}</td>
+                    <td>{{ "%.2f"|format(s.seconds) }}</td>
+                    <td>{{ s.tokens_in }}</td>
+                    <td>{{ s.tokens_out }}</td>
+                    <td>{{ "%.4f"|format(s.cost_usd) }}</td>
+                  </tr>
+                  {% endfor %}
+                  <tr class="total">
+                    <td>TOTAL</td>
+                    <td></td>
+                    <td>{{ "%.2f"|format(brief.stats.total_seconds) }}</td>
+                    <td>{{ brief.stats.tokens_in }}</td>
+                    <td>{{ brief.stats.tokens_out }}</td>
+                    <td>{{ "%.4f"|format(brief.stats.cost_usd) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            {% endif %}
+
+            {% if brief.stats.caches %}
+            <div class="stats-section">
+              <h3>Cache</h3>
+              <table class="stats">
+                <thead>
+                  <tr>
+                    <th>Cache</th>
+                    <th>Hits</th>
+                    <th>Misses</th>
+                    <th>Hit rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for name, c in brief.stats.caches.items() %}
+                  <tr>
+                    <td>{{ name }}</td>
+                    <td>{{ c.hits }}</td>
+                    <td>{{ c.misses }}</td>
+                    <td class="hit-rate {% if c.hit_rate > 0 %}good{% else %}zero{% endif %}">{{ "%.1f"|format(c.hit_rate * 100) }}%</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% endif %}
+          </section>
+        {% else %}
+          <div class="card empty">
+            <h3>No briefs yet</h3>
+            <p>Run <code>make brief-small</code> in your terminal, or click <em>Run new brief</em> above.</p>
+          </div>
+        {% endif %}
+      </main>
+
+    </div>
+  </div>
+
+  <script>
+    const btn = document.getElementById("runBtn");
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      const original = btn.innerHTML;
+      btn.innerHTML = '<span class="btn-icon"></span> Running…';
+      try {
+        const res = await fetch("/run", { method: "POST" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        window.location.href = data.url;
+      } catch (e) {
+        btn.innerHTML = '<span class="btn-icon" style="background:var(--bad);box-shadow:0 0 8px rgba(248,113,113,0.4)"></span> Failed';
+        console.error(e);
+        setTimeout(() => { btn.disabled = false; btn.innerHTML = original; }, 2500);
+      }
+    });
+  </script>
+</body>
+</html>
